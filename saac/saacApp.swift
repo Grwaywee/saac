@@ -1,32 +1,14 @@
-//
-//  saacApp.swift
-//  saac
-//
-//  Created by 위관우 on 3/3/25.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct saacApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @StateObject private var viewModel = AttendanceViewModel()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: viewModel)
+                .modelContainer(for: AttendanceRecord.self) // ✅ CloudKit 자동 설정
         }
-        .modelContainer(sharedModelContainer)
     }
 }

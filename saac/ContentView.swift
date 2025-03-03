@@ -1,61 +1,68 @@
-//
-//  ContentView.swift
-//  saac
-//
-//  Created by 위관우 on 3/3/25.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var viewModel: AttendanceViewModel
+
+    @State private var userName = ""
+
+    // ✅ 커스텀 이니셜라이저 추가 (외부에서 `viewModel`을 설정 가능하도록 변경)
+    init(viewModel: AttendanceViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationView {
+            VStack {
+                TextField("사악한 당신의 이름은?", text: $userName)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+
+                HStack {
+                    Button("출근") {
+                        viewModel.checkIn(userName: userName)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("퇴근") {
+                        if let lastRecord = viewModel.records.last, lastRecord.checkOutTime == nil {
+                            viewModel.checkOut(record: lastRecord)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+
+                List(viewModel.records) { record in
+                    VStack(alignment: .leading) {
+                        Text("이름: \(record.userName)")
+                        Text("출근: \(record.checkInTime, formatter: DateFormatter.shortTime)")
+                        if let checkOut = record.checkOutTime {
+                            Text("퇴근: \(checkOut, formatter: DateFormatter.shortTime)")
+                        } else {
+                            Text("퇴근 기록 없음").foregroundColor(.red)
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
+            .navigationTitle("사악한 근태관리")
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+        .onAppear {
+            viewModel.setContext(modelContext) // ✅ 뷰가 나타날 때 `modelContext`를 설정하도록 변경
         }
     }
 }
 
+extension DateFormatter {
+    static var shortTime: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }
+}
+
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    let previewModel = AttendanceViewModel()
+    return ContentView(viewModel: previewModel) // ✅ 오류 해결: Preview에서 `viewModel`을 명확하게 전달
 }
