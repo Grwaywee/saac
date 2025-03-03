@@ -7,7 +7,6 @@ struct ContentView: View {
 
     @State private var userName = ""
 
-    // ✅ 커스텀 이니셜라이저 추가 (외부에서 `viewModel`을 설정 가능하도록 변경)
     init(viewModel: AttendanceViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
@@ -15,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
-                TextField("사악한 당신의 이름은?", text: $userName)
+                TextField("이름을 입력하세요", text: $userName)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
 
@@ -34,7 +33,7 @@ struct ContentView: View {
                 }
                 .padding()
 
-                List(viewModel.records) { record in
+                List(viewModel.records, id: \.self) { record in  // ✅ id 추가하여 오류 해결
                     VStack(alignment: .leading) {
                         Text("이름: \(record.userName)")
                         Text("출근: \(record.checkInTime, formatter: DateFormatter.shortTime)")
@@ -46,10 +45,10 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("사악한 근태관리")
+            .navigationTitle("근태 관리")
         }
         .onAppear {
-            viewModel.setContext(modelContext) // ✅ 뷰가 나타날 때 `modelContext`를 설정하도록 변경
+            viewModel.fetchRecords()
         }
     }
 }
@@ -64,5 +63,5 @@ extension DateFormatter {
 
 #Preview {
     let previewModel = AttendanceViewModel()
-    return ContentView(viewModel: previewModel) // ✅ 오류 해결: Preview에서 `viewModel`을 명확하게 전달
+    return ContentView(viewModel: previewModel)
 }

@@ -1,43 +1,22 @@
+import Foundation
 import SwiftData
-import SwiftUI
+import Combine
 
-class AttendanceViewModel: ObservableObject {
-    @Published var records: [AttendanceRecord] = []
-    private var modelContext: ModelContext? // ✅ 옵셔널로 변경
+class AttendanceViewModel: ObservableObject {  // ✅ ObservableObject 추가
+    @Published var records: [WorkSession] = []
 
-    func setContext(_ context: ModelContext) {
-        self.modelContext = context
-        fetchRecords()
-    }
-
-    // 출근 기록 추가
     func checkIn(userName: String) {
-        guard let context = modelContext else { return }
-        let newRecord = AttendanceRecord(userName: userName, checkInTime: Date())
-        context.insert(newRecord)
-        fetchRecords()
+        let newRecord = WorkSession(userName: userName, checkInTime: Date())
+        records.append(newRecord)
     }
 
-    // 퇴근 기록 업데이트
-    func checkOut(record: AttendanceRecord) {
-        guard let context = modelContext else { return }
-        do {
-            record.checkOutTime = Date()
-            try context.save() // ✅ SwiftData를 사용한 저장 방식
-            fetchRecords()
-        } catch {
-            print("❌ 데이터 저장 실패: \(error.localizedDescription)")
+    func checkOut(record: WorkSession) {
+        if let index = records.firstIndex(where: { $0.id == record.id }) {
+            records[index].checkOut(time: Date())
         }
     }
 
-    // 근태 데이터 불러오기
     func fetchRecords() {
-        guard let context = modelContext else { return }
-        let fetchDescriptor = FetchDescriptor<AttendanceRecord>()
-        do {
-            self.records = try context.fetch(fetchDescriptor)
-        } catch {
-            print("❌ 데이터 불러오기 실패: \(error.localizedDescription)")
-        }
+        // 여기에 CloudKit 또는 SwiftData에서 데이터를 불러오는 코드 추가 가능
     }
 }
