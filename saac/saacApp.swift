@@ -3,17 +3,15 @@ import CloudKit
 
 @main
 struct saacApp: App {
-    @StateObject private var viewModel = AttendanceViewModel()
-
     init() {
         setupCloudKit()
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: viewModel)
+            ContentView()
                 .onAppear {
-                    viewModel.fetchRecords()
+                    // viewModel.fetchRecords() // This line is removed as viewModel is no longer used here
                 }
         }
     }
@@ -23,12 +21,23 @@ struct saacApp: App {
         let container = CKContainer.default()
         let database = container.publicCloudDatabase
 
-        // ✅ 데이터베이스 연결 확인 (디버깅용)
-        database.fetchAllRecordZones { zones, error in
+        // ✅ CloudKit 계정 상태 확인
+        container.accountStatus { status, error in
             if let error = error {
                 print("❌ CloudKit 연결 실패: \(error.localizedDescription)")
             } else {
-                print("✅ CloudKit 연결 성공: \(zones?.count ?? 0) 개의 레코드 존 발견")
+                switch status {
+                case .available:
+                    print("✅ CloudKit 사용 가능")
+                case .noAccount:
+                    print("⚠️ CloudKit 계정이 없음")
+                case .restricted:
+                    print("⚠️ CloudKit 사용 제한됨")
+                case .couldNotDetermine:
+                    print("❓ CloudKit 상태 확인 불가")
+                @unknown default:
+                    print("⚠️ CloudKit의 새로운 상태 감지")
+                }
             }
         }
     }

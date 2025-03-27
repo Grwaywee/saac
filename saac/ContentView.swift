@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var userName = ""
     @State private var selectedWorkOption: String = "에자일 근무"
 
-    let workOptions = ["에자일 근무", "린 근무", "헝그리 근무"]  // ✅ 동적 선택 가능
+    let workOptions = ["에자일 근무", "린 근무", "파트타임 근무"]  // ✅ 동적 선택 가능
 
     var body: some View {
         NavigationView {
@@ -30,9 +30,8 @@ struct ContentView: View {
 
                     HStack {
                         Button("출근") {
-                            if let userRecord = user.toRecord() {
-                                viewModel.checkIn(userRecord: userRecord, workOption: selectedWorkOption)
-                            }
+                            let userRecord = user.toRecord()
+                            viewModel.checkIn(userRecord: userRecord, workOption: selectedWorkOption)
                         }
                         .buttonStyle(.borderedProminent)
 
@@ -45,7 +44,7 @@ struct ContentView: View {
                     }
                     .padding()
 
-                    List(viewModel.sessions) { record in
+                    List(viewModel.sessions, id: \.id) { record in
                         VStack(alignment: .leading) {
                             Text("이름: \(record.userName)")
                             Text("출근: \(record.checkInTime ?? Date(), formatter: DateFormatter.shortTime)")
@@ -60,7 +59,7 @@ struct ContentView: View {
                     ProgressView("사용자 정보를 불러오는 중...")
                 }
             }
-            .navigationTitle("출퇴근 관리")
+            .navigationTitle("사악한 시스템")
             .onAppear {
                 fetchCurrentUser()
             }
