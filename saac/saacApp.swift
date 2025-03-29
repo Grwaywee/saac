@@ -3,20 +3,19 @@ import CloudKit
 
 @main
 struct saacApp: App {
+    @StateObject private var viewModel = AttendanceViewModel()
+
     init() {
         setupCloudKit()
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .onAppear {
-                    // viewModel.fetchRecords() // This line is removed as viewModel is no longer used here
-                }
+            ContentView(viewModel: viewModel)
         }
     }
 
-    /// ✅ CloudKit 초기 설정 함수
+    //MARK: - ✅ CloudKit 초기 설정 함수
     private func setupCloudKit() {
         let container = CKContainer.default()
         let database = container.publicCloudDatabase
