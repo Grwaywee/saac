@@ -10,6 +10,8 @@ struct WorkSession: Identifiable {
     var checkOutTime: Date?
     var breaks: [Date]
     var lastUpdated: Date
+    var coreStartTime: Date?
+    var coreEndTime: Date?
 
     init(
         id: String,
@@ -20,7 +22,9 @@ struct WorkSession: Identifiable {
         checkInTime: Date?,
         checkOutTime: Date?,
         breaks: [Date],
-        lastUpdated: Date
+        lastUpdated: Date,
+        coreStartTime: Date?,
+        coreEndTime: Date?
     ) {
         self.id = id
         self.date = date
@@ -31,6 +35,8 @@ struct WorkSession: Identifiable {
         self.checkOutTime = checkOutTime
         self.breaks = breaks
         self.lastUpdated = lastUpdated
+        self.coreStartTime = coreStartTime
+        self.coreEndTime = coreEndTime
     }
 
     // 🔹 CloudKit Record로 변환
@@ -49,6 +55,12 @@ struct WorkSession: Identifiable {
         }
         record["breaks"] = breaks as CKRecordValue
         record["lastUpdated"] = lastUpdated as CKRecordValue
+        if let coreStartTime = coreStartTime {
+            record["coreStartTime"] = coreStartTime as CKRecordValue
+        }
+        if let coreEndTime = coreEndTime {
+            record["coreEndTime"] = coreEndTime as CKRecordValue
+        }
         return record
     }
 
@@ -73,5 +85,7 @@ struct WorkSession: Identifiable {
         self.checkOutTime = record["checkOutTime"] as? Date
         self.breaks = record["breaks"] as? [Date] ?? []
         self.lastUpdated = lastUpdated
+        self.coreStartTime = record["coreStartTime"] as? Date
+        self.coreEndTime = record["coreEndTime"] as? Date
     }
 }

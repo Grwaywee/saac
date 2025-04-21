@@ -72,40 +72,42 @@ class AttendanceViewModel: ObservableObject {
         database.add(operation)
     }
 
-    //MARK: - 🔹 출근 기록 (Users 레코드 참조 추가)
+    //MARK: - ✅ 출근 기록 (Users 레코드 참조 추가)
     func checkIn(userRecord: CKRecord, workOption: String) {
-    let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
-    
-    guard let userName = userRecord["userName"] as? String else {
-        print("❌ [checkIn] 사용자 이름 없음")
-        return
-    }
-    
-    let newSession = WorkSession(
-        id: UUID().uuidString,
-        date: Date(),
-        userReference: userReference,
-        userName: userName,
-        workOption: workOption,
-        checkInTime: Date(),
-        checkOutTime: nil,
-        breaks: [],
-        lastUpdated: Date()
-    )
-    
-    let record = newSession.toRecord()
-    database.save(record) { savedRecord, error in
-        if let error = error {
-            print("❌ [checkIn] 출근 기록 저장 실패: \(error.localizedDescription)")
+        let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
+        
+        guard let userName = userRecord["userName"] as? String else {
+            print("❌ [checkIn] 사용자 이름 없음")
             return
         }
-        if let savedRecord = savedRecord, let savedSession = WorkSession(from: savedRecord) {
-            DispatchQueue.main.async {
-                self.sessions.append(savedSession)
-                print("✅ [checkIn] 출근 기록 성공적으로 저장됨")
+        
+        let newSession = WorkSession(
+            id: UUID().uuidString,
+            date: Date(),
+            userReference: userReference,
+            userName: userName,
+            workOption: workOption,
+            checkInTime: Date(),
+            checkOutTime: nil,
+            breaks: [],
+            lastUpdated: Date(),
+            coreStartTime: nil,
+            coreEndTime: nil
+        )
+        
+        let record = newSession.toRecord()
+        database.save(record) { savedRecord, error in
+            if let error = error {
+                print("❌ [checkIn] 출근 기록 저장 실패: \(error.localizedDescription)")
+                return
+            }
+            if let savedRecord = savedRecord, let savedSession = WorkSession(from: savedRecord) {
+                DispatchQueue.main.async {
+                    self.sessions.append(savedSession)
+                    print("✅ [checkIn] 출근 기록 성공적으로 저장됨")
+                }
             }
         }
-    }
     }
 
     //MARK: - 🔹 퇴근 기록
