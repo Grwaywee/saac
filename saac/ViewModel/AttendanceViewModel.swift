@@ -5,46 +5,6 @@ class AttendanceViewModel: ObservableObject {
     @Published var sessions: [WorkSession] = []
     private let database = CKContainer.default().publicCloudDatabase
 
-    //MARK: - 🔹 iCloud 사용자 레코드 확인 또는 생성
-    func fetchOrCreateUserRecord(forAppleID userIdentifier: String, userName: String?, completion: @escaping (CKRecord?) -> Void) {
-        let container = CKContainer.default()
-        let database = container.publicCloudDatabase
-        let recordID = CKRecord.ID(recordName: userIdentifier)
-
-        // 기존 레코드 조회
-        database.fetch(withRecordID: recordID) { existingRecord, fetchError in
-            if let existingRecord = existingRecord {
-                print("✅ 기존 사용자 레코드 불러옴")
-                completion(existingRecord)
-            } else {
-                // 새 사용자 레코드 생성
-                let newUser = CKRecord(recordType: "AppUsers", recordID: recordID)
-                newUser["id"] = userIdentifier as CKRecordValue
-                newUser["email"] = "unknown@icloud.com" as CKRecordValue
-                newUser["createdAt"] = Date() as CKRecordValue
-
-                // 이름을 fallback으로 직접 입력받음
-                if let name = userName, !name.isEmpty {
-                    print("✅ 사용자 이름 획득: \(name)")
-                    newUser["userName"] = name as CKRecordValue
-                } else {
-                    print("📥 이름이 없어서 fallback 처리: 이름없음")
-                    newUser["userName"] = "이름없음" as CKRecordValue
-                }
-                
-                database.save(newUser) { savedRecord, saveError in
-                    if let savedRecord = savedRecord {
-                        print("✅ 새 Users 레코드 생성됨")
-                        completion(savedRecord)
-                    } else {
-                        print("❌ Users 레코드 저장 실패: \(saveError?.localizedDescription ?? "")")
-                        completion(nil)
-                    }
-                }
-            }
-        }
-    }
-
     //MARK: - 🔹 특정 사용자의 WorkSession 기록을 가져오는 함수
     func fetchUserSessions(userRecord: CKRecord) {
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
@@ -74,6 +34,7 @@ class AttendanceViewModel: ObservableObject {
 
     //MARK: - ✅ 출근 기록 (Users 레코드 참조 추가)
     func checkIn(userRecord: CKRecord, workOption: String) {
+        print("🟢 checkIn 함수 호출됨")
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
         
         guard let userName = userRecord["userName"] as? String else {
@@ -123,6 +84,44 @@ class AttendanceViewModel: ObservableObject {
                 return
             }
             print("✅ [checkOut] 퇴근 기록 성공적으로 저장됨")
+        }
+    }
+
+    //MARK: - 🗑 사용자 탈퇴 처리 (사용자 레코드 + 모든 WorkSession 삭제)
+    func deleteUserData(userRecord: CKRecord, completion: @escaping (Bool) -> Void) {
+        let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
+        let sessionPredicate = NSPredicate(format: "userReference == %@", userReference)
+        let sessionQuery = CKQuery(recordType: "worksession", predicate: sessionPredicate)
+
+        // Step 1: Fetch all sessions for this user
+        self.database.perform(sessionQuery, inZoneWith: nil) { results, error in
+            if let error = error {
+                print("❌ 사용자 세션 조회 실패: \(error.localizedDescription)")
+                completion(false)
+                return
+            }
+
+            var recordsToDelete = results?.map { $0.recordID } ?? []
+
+            // Step 2: Add the user record itself
+            recordsToDelete.append(userRecord.recordID)
+
+            // Step 3: Batch delete
+            let deleteOperation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
+            deleteOperation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    print("✅ 사용자 및 세션 전부 삭제 완료")
+                    DispatchQueue.main.async {
+                        self.sessions.removeAll()
+                        completion(true)
+                    }
+                case .failure(let error):
+                    print("❌ 사용자 및 세션 삭제 실패: \(error.localizedDescription)")
+                    completion(false)
+                }
+            }
+            self.database.add(deleteOperation)
         }
     }
 }

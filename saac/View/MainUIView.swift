@@ -3,6 +3,7 @@ import CloudKit
 
 struct MainUIView: View {
     @ObservedObject var viewModel: AttendanceViewModel
+    @EnvironmentObject var appState: AppStateViewModel
     var currentUserRecord: CKRecord
     @Binding var selectedWorkOption: String
     @State private var checkInTime: Date? = nil
@@ -33,11 +34,25 @@ struct MainUIView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                Text("\(currentUserRecord["userName"] as? String ?? "사용자") 님의 사악한 업무 😈")
-                    .font(.title3)
-                    .bold()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
+                // ✅ "이름" 님의 사악한 업무 + 설정 버튼
+                HStack {
+                    Text("\(currentUserRecord["userName"] as? String ?? "사용자") 님의 사악한 업무 😈")
+                        .font(.title3)
+                        .bold()
+                    Spacer()
+                    
+                    NavigationLink(
+                        destination: SettingsView()
+                            .environmentObject(viewModel)
+                            .environmentObject(appState)
+                    ) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal)
                 
                 Spacer().frame(height: 16)
                 

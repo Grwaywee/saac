@@ -12,6 +12,10 @@ struct ContentView: View {
     @State private var appleIDCredential: ASAuthorizationAppleIDCredential?
     @State private var isSignedIn = false
     @State private var isLoading = false
+    @State private var isCheckingAutoSignIn = true
+
+    @EnvironmentObject var appState: AppStateViewModel
+    @StateObject private var signInManager = AppleSignInManager()
 
     init(viewModel: AttendanceViewModel) {
         self.viewModel = viewModel
@@ -20,7 +24,9 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
-                if isSignedIn {
+                if isCheckingAutoSignIn {
+                    ProgressView("사악한 계략 세우는 중...")
+                } else if isSignedIn {
                     if isLoading {
                         ProgressView("사악한 계략 세우는 중...")
                     } else if let userRecord = currentUserRecord {
@@ -31,14 +37,12 @@ struct ContentView: View {
                         )
                     }
                 } else {
-                    LoginView(viewModel: viewModel) { record in
-                        self.isLoading = true
-                        self.currentUserRecord = record
-                        self.viewModel.fetchUserSessions(userRecord: record)
-                        self.isSignedIn = true
-                        self.isLoading = false
-                    }
-                    .padding()
+                    LoginView(
+                        signInManager: signInManager,
+                        onLoginSuccess: { record in
+                            appState.completeSignIn(with: record)
+                        }
+                    )
                 }
             }
             .sheet(isPresented: $showingNamePrompt) {
@@ -59,23 +63,14 @@ struct ContentView: View {
                 }
                 .padding()
             }
-            
-            .onAppear {
-                CloudKitService.requestiCloudPermission { granted in
-                    if granted {
-                        CloudKitService.fetchCurrentUser { record in
-                            if let record = record {
-                                self.currentUserRecord = record
-                                self.viewModel.fetchUserSessions(userRecord: record)
-                            }
-                            isLoading = false
-                        }
-                    } else {
-                        print("❌ iCloud 권한이 필요합니다.")
-                        isLoading = false
-                    }
-                }
+            .task {
+                // observe app state changes
+                currentUserRecord = appState.currentUserRecord
+                isSignedIn = appState.isSignedIn
+                isLoading = appState.isLoadingUser
+                isCheckingAutoSignIn = false
             }
+            
         }
     }
 }

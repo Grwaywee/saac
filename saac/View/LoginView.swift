@@ -3,7 +3,7 @@ import AuthenticationServices
 import CloudKit
 
 struct LoginView: View {
-    @ObservedObject var viewModel: AttendanceViewModel
+    var signInManager: AppleSignInManager
     var onLoginSuccess: (CKRecord) -> Void
     
     @State private var currentMessageIndex = 0
@@ -44,7 +44,7 @@ struct LoginView: View {
                                                       .joined(separator: " ")
                                                   let finalName = fullName.isEmpty ? "이름없음" : fullName
 
-                                                  viewModel.fetchOrCreateUserRecord(forAppleID: userID, userName: finalName) { record in
+                                                  signInManager.fetchOrCreateUserRecord(forAppleID: userID, userName: finalName, email: credential.email) { record in
                                                       if let record = record {
                                                           DispatchQueue.main.async {
                                                               onLoginSuccess(record)
@@ -79,7 +79,7 @@ struct LoginView: View {
 
 struct LoginView_Previews: PreviewProvider {
     static var previews: some View {
-        LoginView(viewModel: AttendanceViewModel()) { _ in
+        LoginView(signInManager: AppleSignInManager()) { _ in
             // Preview: No-op for login success
         }
     }
