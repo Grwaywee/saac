@@ -72,8 +72,9 @@ struct WorkSession: Identifiable {
 
     // 🔹 CloudKit에서 가져오기 (from record)
     init?(from record: CKRecord) {
-        guard let id = record["id"] as? String,
-              let date = record["date"] as? Date,
+        let id = record.recordID.recordName
+
+        guard let date = record["date"] as? Date,
               let userReference = record["userReference"] as? CKRecord.Reference,
               let userName = record["userName"] as? String,
               let workOption = record["workOption"] as? String,

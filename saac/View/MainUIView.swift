@@ -57,7 +57,7 @@ struct MainUIView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // ✅ "이름" 님의 사악한 업무 + 설정 버튼
+                //MARK: - ✅ "이름" 님의 사악한 업무 + 설정 버튼
                 HStack {
                     Text("\(currentUserRecord["userName"] as? String ?? "사용자") 님의 사악한 업무 😈")
                         .font(.title3)
@@ -85,28 +85,43 @@ struct MainUIView: View {
                 
                 ScrollView {
                     VStack(spacing: 16) {
+                        //MARK: - ✅ 개인 업무 인사이트 섹션
                         NavigationLink(destination: StatisticsView()) {
                             RoundedRectangle(cornerRadius: 18)
-                                .fill(Color(UIColor.systemGray5))
+                                .fill(Color.green.opacity(0.1))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: UIScreen.main.bounds.height / 3.5)
                                 .overlay(
-                                    Text("업무 시간 통계")
+                                    Text("개인 업무 인사이트")
                                         .foregroundColor(.primary)
                                 )
                         }
 
+                        //MARK: - ✅ 세부 업무 인사이트 섹션
                         RoundedRectangle(cornerRadius: 18)
-                            .fill(Color(UIColor.systemGray5))
+                            .fill(Color.blue.opacity(0.1))
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3.5)
                             .overlay(
-                                Text("초과 및 공백 통계")
+                                Text("세부 업무 인사이트")
                                     .foregroundColor(.primary)
                             )
 
+                        //MARK: - ✅ WorkSession 리스트뷰
+                        NavigationLink(destination: WorkSessionView()) {
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.red.opacity(0.1))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: UIScreen.main.bounds.height / 3.5)
+                                .overlay(
+                                    Text("WorkSession 리스트")
+                                        .foregroundColor(.primary)
+                                )
+                        }
+                        
+                        //MARK: - ✅ 신기능 제안 블럭
                         RoundedRectangle(cornerRadius: 18)
-                            .fill(Color(UIColor.systemGray5))
+                            .fill(Color.yellow.opacity(0.1))
                             .frame(maxWidth: .infinity)
                             .frame(height: UIScreen.main.bounds.height / 3.5)
                             .overlay(
