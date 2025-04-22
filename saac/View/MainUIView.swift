@@ -11,6 +11,10 @@ struct MainUIView: View {
     @State private var coreStartTime: Date? = nil
     @State private var coreEndTime: Date? = nil
     @State private var isCheckedIn: Bool = false
+    @State private var showAdditionPopup = false
+    
+    @State private var workedTimeText: String = "0h 0m"
+    @State private var timer: Timer? = nil
     
     let workOptions = ["Main", "addition", "deletion"]
     
@@ -26,6 +30,25 @@ struct MainUIView: View {
     
     func widthBetween(_ start: Date, _ end: Date) -> CGFloat {
         max(xOffset(for: end) - xOffset(for: start), 0)
+    }
+    
+    func startWorkTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+            updateWorkedTime()
+        }
+        updateWorkedTime()
+    }
+
+    func updateWorkedTime() {
+        guard let start = checkInTime else {
+            workedTimeText = "0h 0m"
+            return
+        }
+        let interval = Int(Date().timeIntervalSince(start))
+        let hours = interval / 3600
+        let minutes = (interval % 3600) / 60
+        workedTimeText = "\(hours)h \(minutes)m"
     }
     
     let fullWidth = UIScreen.main.bounds.width - 32
@@ -116,17 +139,32 @@ struct MainUIView: View {
                 Spacer().frame(height: 16)
                 
                 // ✅ 오늘의 한 마디
-                HStack {
-                    Spacer()
-                    Text("주 40시간 오늘도 사악하게 화이팅~~💫")
-                        .font(.footnote)
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(red: 0.9, green: 0.95, blue: 1.0))
-                .cornerRadius(12)
+                RoundedRectangle(cornerRadius: 30)
+                    .fill(Color.blue.opacity(0.1))
+                    .overlay(
+                        HStack() {
+                            Text(workedTimeText)
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .padding(.vertical, -8)
+                                .background(Color.blue)
+                                .cornerRadius(20)
+                            
+                            Spacer()
+                            
+                            Text("사악한 업무 V1.0~~💫")
+                                .font(.subheadline)
+                                .bold()
+                                .padding()
+                            
+                            Spacer()
+                        }
+                        .padding(.leading, 8)
+                        .padding(.trailing, 8)
+                    )
+                    .padding(.horizontal)
+                    .frame(height: 50)
                 
                 Spacer().frame(height: 16)
 
@@ -174,11 +212,17 @@ struct MainUIView: View {
                                 workOption: selectedWorkOption
                             )
                             checkInTime = now
+                            startWorkTimer()
                         } else if checkOutTime == nil {
                             checkOutTime = Date()
+                            timer?.invalidate()
+                            workedTimeText = "0h 0m"
+                            viewModel.checkOut(userRecord: currentUserRecord, workOption: selectedWorkOption)
                         } else {
                             checkInTime = nil
                             checkOutTime = nil
+                            timer?.invalidate()
+                            workedTimeText = "0h 0m"
                         }
                     }
 
@@ -192,10 +236,32 @@ struct MainUIView: View {
                             coreEndTime = nil
                         }
                     }
+
+                    AdditionButton(isPresented: $showAdditionPopup)
                 }
                 .padding(.top, 8)
             }
             .padding()
+            .sheet(isPresented: $showAdditionPopup) {
+                AdditionPopupView(isPresented: $showAdditionPopup)
+            }
+            .onAppear {
+                viewModel.fetchUserSessions(userRecord: currentUserRecord)
+            }
+            .onReceive(viewModel.$sessions) { sessions in
+                let today = Date()
+                let userReference = CKRecord.Reference(recordID: currentUserRecord.recordID, action: .none)
+
+                if let session = sessions.first(where: {
+                    $0.userReference.recordID == userReference.recordID &&
+                    Calendar.current.isDate($0.date, inSameDayAs: today) &&
+                    $0.workOption == selectedWorkOption &&
+                    $0.checkOutTime == nil
+                }) {
+                    checkInTime = session.checkInTime
+                    startWorkTimer()
+                }
+            }
         }
     }
 }

@@ -34,7 +34,7 @@ class AttendanceViewModel: ObservableObject {
 
     //MARK: - ✅ 출근 기록 (Users 레코드 참조 추가)
     func checkIn(userRecord: CKRecord, workOption: String) {
-        print("🟢 checkIn 함수 호출됨")
+        print("\n----------Main WorkSession 생성----------AttendanceViewModel----------\n")
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
         
         guard let userName = userRecord["userName"] as? String else {
@@ -53,37 +53,64 @@ class AttendanceViewModel: ObservableObject {
             breaks: [],
             lastUpdated: Date(),
             coreStartTime: nil,
-            coreEndTime: nil
+            coreEndTime: nil,
+            note: nil // optional 텍스트 필드
         )
         
         let record = newSession.toRecord()
         database.save(record) { savedRecord, error in
             if let error = error {
                 print("❌ [checkIn] 출근 기록 저장 실패: \(error.localizedDescription)")
+                print("----------이상 끝----------AttendanceViewModel----------")
                 return
             }
             if let savedRecord = savedRecord, let savedSession = WorkSession(from: savedRecord) {
                 DispatchQueue.main.async {
                     self.sessions.append(savedSession)
                     print("✅ [checkIn] 출근 기록 성공적으로 저장됨")
+                    print("----------이상 끝----------AttendanceViewModel----------")
                 }
             }
         }
     }
 
-    //MARK: - 🔹 퇴근 기록
-    func checkOut(session: WorkSession) {
-        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
-        sessions[index].checkOutTime = Date()
-        sessions[index].lastUpdated = Date()
+    //MARK: - ✅ 퇴근 기록
+    func checkOut(session: WorkSession? = nil, userRecord: CKRecord? = nil, workOption: String? = nil) {
+        if let session = session {
+            // 기존 방식
+            guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+            sessions[index].checkOutTime = Date()
+            sessions[index].lastUpdated = Date()
+            
+            print("\n----------Main WorkSession 마무리----------AttendanceViewModel----------\n")
 
-        let record = sessions[index].toRecord()
-        database.save(record) { savedRecord, error in
-            if let error = error {
-                print("❌ [checkOut] 퇴근 기록 저장 실패: \(error.localizedDescription)")
-                return
+            let record = sessions[index].toRecord()
+            database.save(record) { savedRecord, error in
+                if let error = error {
+                    print("❌ [checkOut] 퇴근 기록 저장 실패: \(error.localizedDescription)")
+                    print("----------이상 끝----------AttendanceViewModel----------")
+                    return
+                }
+                print("✅ [checkOut] 퇴근 기록 성공적으로 저장됨")
+                print("----------이상 끝----------AttendanceViewModel----------")
             }
-            print("✅ [checkOut] 퇴근 기록 성공적으로 저장됨")
+        } else if let userRecord = userRecord, let workOption = workOption {
+            let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
+            let today = Date()
+            if let match = sessions.first(where: {
+                $0.userReference.recordID == userReference.recordID &&
+                Calendar.current.isDate($0.date, inSameDayAs: today) &&
+                $0.workOption == workOption &&
+                $0.checkOutTime == nil
+            }) {
+                checkOut(session: match)
+            } else {
+                print("⚠️ [checkOut] 오늘 날짜에 맞는 퇴근 가능한 세션을 찾지 못했습니다.")
+                print("----------이상 끝----------AttendanceViewModel----------")
+            }
+        } else {
+            print("❌ [checkOut] session 또는 userRecord + workOption 둘 중 하나는 반드시 필요합니다.")
+            print("----------이상 끝----------AttendanceViewModel----------")
         }
     }
 
