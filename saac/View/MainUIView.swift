@@ -12,7 +12,7 @@ struct MainUIView: View {
     @State private var coreEndTime: Date? = nil
     @State private var isCheckedIn: Bool = false
     
-    let workOptions = ["에자일 근무", "린 근무", "파트타임 근무"]
+    let workOptions = ["Main", "addition", "deletion"]
     
     func xOffset(for date: Date) -> CGFloat {
         let calendar = Calendar.current
@@ -62,16 +62,34 @@ struct MainUIView: View {
                 
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(0..<3) { index in
+                        NavigationLink(destination: StatisticsView()) {
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color(UIColor.systemGray5))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: UIScreen.main.bounds.height / 3.5)
                                 .overlay(
-                                    Text("Section \(index + 1)")
+                                    Text("업무 시간 통계")
                                         .foregroundColor(.primary)
                                 )
                         }
+
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3.5)
+                            .overlay(
+                                Text("초과 및 공백 통계")
+                                    .foregroundColor(.primary)
+                            )
+
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIScreen.main.bounds.height / 3.5)
+                            .overlay(
+                                Text("새로운 기능을 제안해주세요.!!")
+                                    .foregroundColor(.primary)
+                            )
                     }
                 }
                 
@@ -194,5 +212,6 @@ struct MainUIView_Previews: PreviewProvider {
             }(),
             selectedWorkOption: .constant("에자일 근무")
         )
+        .environmentObject(AppStateViewModel()) // ✅ Inject environment object
     }
 }
