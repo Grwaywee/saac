@@ -24,6 +24,7 @@ struct saacApp: App {
                 appState.tryAutoSignIn()
 //                deleteTestUserRecord() //TODO: 🔥 항상 확인하고 다시 꺼야함.
 //                logAllCloudKitUsers() //TODO: 🔥 항상 확인하고 다시 꺼야함.
+//                deleteAllWorkSessions() //TODO: 🔥 항상 확인하고 다시 꺼야함.
             }
         }
     }
@@ -87,6 +88,37 @@ struct saacApp: App {
                 print("🗑 사용자 레코드 삭제 완료: \(deletedRecordID?.recordName ?? "알 수 없음")")
                 print("----------이상 끝----------SaacApp----------")
             }
+        }
+    }
+    
+    //MARK: - 🧪 CloudKit 디버깅용: 전체 WorkSession 레코드 삭제
+    private func deleteAllWorkSessions() {
+        print("\n----------전체 WorkSession 삭제 시작----------\n")
+        let db = CKContainer.default().publicCloudDatabase
+        let query = CKQuery(recordType: "WorkSession", predicate: NSPredicate(value: true))
+
+        db.perform(query, inZoneWith: nil) { records, error in
+            if let error = error {
+                print("❌ WorkSession 조회 실패: \(error.localizedDescription)")
+                return
+            }
+
+            guard let records = records, !records.isEmpty else {
+                print("ℹ️ 삭제할 WorkSession 레코드 없음")
+                return
+            }
+
+            let recordIDs = records.map { $0.recordID }
+            let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDs)
+            operation.modifyRecordsCompletionBlock = { _, deletedIDs, error in
+                if let error = error {
+                    print("❌ WorkSession 레코드 삭제 실패: \(error.localizedDescription)")
+                } else {
+                    print("🗑 WorkSession \(deletedIDs?.count ?? 0)개 삭제 완료")
+                }
+                print("----------전체 WorkSession 삭제 종료----------")
+            }
+            db.add(operation)
         }
     }
 }

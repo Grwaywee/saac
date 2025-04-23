@@ -16,8 +16,6 @@ struct MainUIView: View {
     @State private var workedTimeText: String = "0h 0m"
     @State private var timer: Timer? = nil
     
-    let workOptions = ["Main", "addition", "deletion"]
-    
     func xOffset(for date: Date) -> CGFloat {
         let calendar = Calendar.current
         let components = calendar.dateComponents([.hour, .minute, .second], from: date)
@@ -217,66 +215,124 @@ struct MainUIView: View {
                 
                 Spacer().frame(height: 16)
 
-                // ✅ 출퇴근, 코어타임 버튼
-                HStack(spacing: 16) {
-                    SessionButton(isCheckedIn: $isCheckedIn) {
-                        if checkInTime == nil {
+                let today = Date()
+                let userReference = CKRecord.Reference(recordID: currentUserRecord.recordID, action: .none)
+
+                if let mainSession = viewModel.sessions.first(where: {
+                    $0.userReference.recordID == userReference.recordID &&
+                    Calendar.current.isDate($0.date, inSameDayAs: today) &&
+                    $0.workOption == "Main"
+                }) {
+                    if mainSession.checkOutTime == nil {
+                        HStack(spacing: 16) {
+                            SessionButton(isCheckedIn: $isCheckedIn) {
+                                checkOutTime = Date()
+                                timer?.invalidate()
+                                workedTimeText = "0h 0m"
+                                viewModel.checkOut(userRecord: currentUserRecord)
+                            }
+
+                            CoreTimeButton {
+                                if coreStartTime == nil {
+                                    coreStartTime = Date()
+                                } else if coreEndTime == nil {
+                                    coreEndTime = Date()
+                                } else {
+                                    coreStartTime = nil
+                                    coreEndTime = nil
+                                }
+                            }
+
+                            AdditionButton(isPresented: $showAdditionPopup)
+                        }
+                        .padding(.top, 8)
+                    }
+                } else {
+                    HStack(spacing: 16) {
+                        SessionButton(isCheckedIn: $isCheckedIn) {
                             let now = Date()
-                            viewModel.checkIn(
-                                userRecord: currentUserRecord,
-                                workOption: selectedWorkOption
-                            )
+                            viewModel.checkIn(userRecord: currentUserRecord)
                             checkInTime = now
                             startWorkTimer()
-                        } else if checkOutTime == nil {
-                            checkOutTime = Date()
-                            timer?.invalidate()
-                            workedTimeText = "0h 0m"
-                            viewModel.checkOut(userRecord: currentUserRecord, workOption: selectedWorkOption)
-                        } else {
-                            checkInTime = nil
-                            checkOutTime = nil
-                            timer?.invalidate()
-                            workedTimeText = "0h 0m"
                         }
-                    }
 
-                    CoreTimeButton {
-                        if coreStartTime == nil {
-                            coreStartTime = Date()
-                        } else if coreEndTime == nil {
-                            coreEndTime = Date()
-                        } else {
-                            coreStartTime = nil
-                            coreEndTime = nil
+                        CoreTimeButton {
+                            if coreStartTime == nil {
+                                coreStartTime = Date()
+                            } else if coreEndTime == nil {
+                                coreEndTime = Date()
+                            } else {
+                                coreStartTime = nil
+                                coreEndTime = nil
+                            }
                         }
-                    }
 
-                    AdditionButton(isPresented: $showAdditionPopup)
+                        AdditionButton(isPresented: $showAdditionPopup)
+                    }
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
             }
             .padding()
             .sheet(isPresented: $showAdditionPopup) {
                 AdditionPopupView(isPresented: $showAdditionPopup)
             }
             .onAppear {
-                viewModel.fetchUserSessions(userRecord: currentUserRecord)
+                print("🟡 [MainUIView] onAppear - fetching sessions...")
+                viewModel.fetchTodayMainSession(userRecord: currentUserRecord)
             }
             .onReceive(viewModel.$sessions) { sessions in
-                let today = Date()
+                let today = Calendar.current.startOfDay(for: Date())
                 let userReference = CKRecord.Reference(recordID: currentUserRecord.recordID, action: .none)
+                print("🟢 [MainUIView] Received \(sessions.count) session(s). Checking today's Main session state...")
 
                 if let session = sessions.first(where: {
                     $0.userReference.recordID == userReference.recordID &&
-                    Calendar.current.isDate($0.date, inSameDayAs: today) &&
-                    $0.workOption == selectedWorkOption &&
+                    Calendar.current.startOfDay(for: $0.date) == today &&
+                    $0.workOption == "Main" &&
                     $0.checkOutTime == nil
                 }) {
+                    print("✅ [MainUIView] Main session found for today without checkOutTime → Showing 퇴근 버튼")
                     checkInTime = session.checkInTime
+                    isCheckedIn = true
                     startWorkTimer()
+                } else if let session = sessions.first(where: {
+                    $0.userReference.recordID == userReference.recordID &&
+                    Calendar.current.startOfDay(for: $0.date) == today &&
+                    $0.workOption == "Main" &&
+                    $0.checkOutTime != nil
+                }) {
+                    print("🔵 [MainUIView] Main session exists but already checked out → Hiding buttons")
+                    isCheckedIn = false
+                    checkInTime = session.checkInTime
+                    checkOutTime = session.checkOutTime
+                } else {
+                    print("🟠 [MainUIView] No Main session for today → Showing 출근 버튼")
+                    isCheckedIn = false
+                    checkInTime = nil
+                    checkOutTime = nil
                 }
             }
+        }
+    }
+}
+
+// MARK: - MainUIView Extensions
+extension MainUIView {
+    private func updateTodayMainSessionState() {
+        let today = Date()
+        let userReference = CKRecord.Reference(recordID: currentUserRecord.recordID, action: .none)
+
+        let mainSession = viewModel.sessions.first(where: {
+            $0.userReference.recordID == userReference.recordID &&
+            Calendar.current.isDate($0.date, inSameDayAs: today) &&
+            $0.workOption == "Main" &&
+            $0.checkOutTime == nil
+        })
+
+        if let session = mainSession {
+            checkInTime = session.checkInTime
+            isCheckedIn = true
+            startWorkTimer()
         }
     }
 }

@@ -1,6 +1,15 @@
 import Foundation
 import CloudKit
 
+extension Date {
+    func convert(to targetTimeZone: TimeZone, using calendar: Calendar) -> Date {
+        let components = calendar.dateComponents(in: calendar.timeZone, from: self)
+        var targetCalendar = calendar
+        targetCalendar.timeZone = targetTimeZone
+        return targetCalendar.date(from: components) ?? self
+    }
+}
+
 class AttendanceViewModel: ObservableObject {
     @Published var sessions: [WorkSession] = []
     private let database = CKContainer.default().publicCloudDatabase
@@ -10,6 +19,11 @@ class AttendanceViewModel: ObservableObject {
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
         let predicate = NSPredicate(format: "userReference == %@", userReference)
         let query = CKQuery(recordType: "worksession", predicate: predicate)
+
+        // ✅ Clear existing sessions before fetching new ones
+        DispatchQueue.main.async {
+            self.sessions = []
+        }
 
         let operation = CKQueryOperation(query: query)
         operation.resultsLimit = CKQueryOperation.maximumResults
@@ -32,8 +46,54 @@ class AttendanceViewModel: ObservableObject {
         database.add(operation)
     }
 
+//MARK: - 🔹 특정 사용자의 Main WorkSession 쿼리하기
+func fetchTodayMainSession(userRecord: CKRecord) {
+    let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
+
+    // Step 1: Create KST-based calendar
+    let koreanTimeZone = TimeZone(identifier: "Asia/Seoul")!
+    var kstCalendar = Calendar(identifier: .gregorian)
+    kstCalendar.timeZone = koreanTimeZone
+
+    // Step 2: Get KST start and end of today
+    let startOfTodayKST = kstCalendar.startOfDay(for: Date())
+    let startOfTomorrowKST = kstCalendar.date(byAdding: .day, value: 1, to: startOfTodayKST)!
+
+    // Step 3: Convert to UTC for CloudKit query
+    let utcCalendar = Calendar(identifier: .gregorian)
+    let utcTodayStart = startOfTodayKST.convert(to: .gmt, using: utcCalendar)
+    let utcTomorrowStart = startOfTomorrowKST.convert(to: .gmt, using: utcCalendar)
+
+    let predicate = NSPredicate(format: "userReference == %@ AND workOption == %@ AND date >= %@ AND date < %@",
+                                userReference, "Main", utcTodayStart as CVarArg, utcTomorrowStart as CVarArg)
+
+    let query = CKQuery(recordType: "worksession", predicate: predicate)
+    let operation = CKQueryOperation(query: query)
+    operation.resultsLimit = CKQueryOperation.maximumResults
+
+    DispatchQueue.main.async {
+        self.sessions = [] // Clear sessions before fetching new ones
+    }
+
+    operation.recordMatchedBlock = { _, result in
+        switch result {
+        case .success(let record):
+            if let session = WorkSession(from: record) {
+                DispatchQueue.main.async {
+                    self.sessions = [session]
+                    print("✅ [fetchTodayMainSession] Main session for today loaded: \(session.id)")
+                }
+            }
+        case .failure(let error):
+            print("❌ [fetchTodayMainSession] 오류: \(error.localizedDescription)")
+        }
+    }
+
+    database.add(operation)
+}
+
     //MARK: - ✅ 출근 기록 (Users 레코드 참조 추가)
-    func checkIn(userRecord: CKRecord, workOption: String) {
+    func checkIn(userRecord: CKRecord) {
         print("\n----------Main WorkSession 생성----------AttendanceViewModel----------\n")
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
         
@@ -44,10 +104,10 @@ class AttendanceViewModel: ObservableObject {
         
         let newSession = WorkSession(
             id: UUID().uuidString,
-            date: Date(),
+            date: Calendar.current.startOfDay(for: Date()),
             userReference: userReference,
             userName: userName,
-            workOption: workOption,
+            workOption: "Main",
             checkInTime: Date(),
             checkOutTime: nil,
             breaks: [],
@@ -75,7 +135,7 @@ class AttendanceViewModel: ObservableObject {
     }
 
     //MARK: - ✅ 퇴근 기록
-    func checkOut(session: WorkSession? = nil, userRecord: CKRecord? = nil, workOption: String? = nil) {
+    func checkOut(session: WorkSession? = nil, userRecord: CKRecord? = nil) {
         if let session = session {
             // 기존 방식
             guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
@@ -94,13 +154,13 @@ class AttendanceViewModel: ObservableObject {
                 print("✅ [checkOut] 퇴근 기록 성공적으로 저장됨")
                 print("----------이상 끝----------AttendanceViewModel----------")
             }
-        } else if let userRecord = userRecord, let workOption = workOption {
+        } else if let userRecord = userRecord {
             let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
             let today = Date()
             if let match = sessions.first(where: {
                 $0.userReference.recordID == userReference.recordID &&
                 Calendar.current.isDate($0.date, inSameDayAs: today) &&
-                $0.workOption == workOption &&
+                $0.workOption == "Main" &&
                 $0.checkOutTime == nil
             }) {
                 checkOut(session: match)
@@ -109,7 +169,7 @@ class AttendanceViewModel: ObservableObject {
                 print("----------이상 끝----------AttendanceViewModel----------")
             }
         } else {
-            print("❌ [checkOut] session 또는 userRecord + workOption 둘 중 하나는 반드시 필요합니다.")
+            print("❌ [checkOut] session 또는 userRecord 둘 중 하나는 반드시 필요합니다.")
             print("----------이상 끝----------AttendanceViewModel----------")
         }
     }
