@@ -64,10 +64,20 @@ struct ContentView: View {
                 .padding()
             }
             .task {
-                // observe app state changes
+                isCheckingAutoSignIn = true
                 currentUserRecord = appState.currentUserRecord
                 isSignedIn = appState.isSignedIn
-                isLoading = appState.isLoadingUser
+
+                if let userRecord = currentUserRecord, isSignedIn {
+                    isLoading = true
+                    viewModel.fetchTodayMainSession(userRecord: userRecord)
+                    // 약간의 지연을 줘서 쿼리 타이밍을 맞추거나 콜백 대체 가능
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        isLoading = false
+                    }
+                } else {
+                    isLoading = false
+                }
                 isCheckingAutoSignIn = false
             }
             

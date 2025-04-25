@@ -43,8 +43,8 @@ struct WorkSession: Identifiable {
     }
 
     // 🔹 CloudKit Record로 변환
-    func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: "worksession")
+    func toRecord(existingRecord: CKRecord? = nil) -> CKRecord {
+        let record = existingRecord ?? CKRecord(recordType: "worksession", recordID: CKRecord.ID(recordName: self.id))
         record["id"] = id as CKRecordValue
         record["date"] = date as CKRecordValue
         record["userReference"] = userReference

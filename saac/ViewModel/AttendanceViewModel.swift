@@ -2,32 +2,32 @@ import Foundation
 import CloudKit
 
 extension Date {
-    func convert(to targetTimeZone: TimeZone, using calendar: Calendar) -> Date {
-        let components = calendar.dateComponents(in: calendar.timeZone, from: self)
-        var targetCalendar = calendar
-        targetCalendar.timeZone = targetTimeZone
-        return targetCalendar.date(from: components) ?? self
-    }
+func convert(to targetTimeZone: TimeZone, using calendar: Calendar) -> Date {
+    let components = calendar.dateComponents(in: calendar.timeZone, from: self)
+    var targetCalendar = calendar
+    targetCalendar.timeZone = targetTimeZone
+    return targetCalendar.date(from: components) ?? self
+}
 }
 
 class AttendanceViewModel: ObservableObject {
     @Published var sessions: [WorkSession] = []
     private let database = CKContainer.default().publicCloudDatabase
-
+    
     //MARK: - 🔹 특정 사용자의 WorkSession 기록을 가져오는 함수
     func fetchUserSessions(userRecord: CKRecord) {
         let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
         let predicate = NSPredicate(format: "userReference == %@", userReference)
         let query = CKQuery(recordType: "worksession", predicate: predicate)
-
+        
         // ✅ Clear existing sessions before fetching new ones
         DispatchQueue.main.async {
             self.sessions = []
         }
-
+        
         let operation = CKQueryOperation(query: query)
         operation.resultsLimit = CKQueryOperation.maximumResults
-
+        
         operation.recordMatchedBlock = { _, result in
             switch result {
             case .success(let record):
@@ -42,56 +42,72 @@ class AttendanceViewModel: ObservableObject {
                 print("❌ [fetchUserSessions] 사용자 세션 불러오기 오류: \(error.localizedDescription)")
             }
         }
-
+        
         database.add(operation)
     }
-
-//MARK: - 🔹 특정 사용자의 Main WorkSession 쿼리하기
-func fetchTodayMainSession(userRecord: CKRecord) {
-    let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
-
-    // Step 1: Create KST-based calendar
-    let koreanTimeZone = TimeZone(identifier: "Asia/Seoul")!
-    var kstCalendar = Calendar(identifier: .gregorian)
-    kstCalendar.timeZone = koreanTimeZone
-
-    // Step 2: Get KST start and end of today
-    let startOfTodayKST = kstCalendar.startOfDay(for: Date())
-    let startOfTomorrowKST = kstCalendar.date(byAdding: .day, value: 1, to: startOfTodayKST)!
-
-    // Step 3: Convert to UTC for CloudKit query
-    let utcCalendar = Calendar(identifier: .gregorian)
-    let utcTodayStart = startOfTodayKST.convert(to: .gmt, using: utcCalendar)
-    let utcTomorrowStart = startOfTomorrowKST.convert(to: .gmt, using: utcCalendar)
-
-    let predicate = NSPredicate(format: "userReference == %@ AND workOption == %@ AND date >= %@ AND date < %@",
-                                userReference, "Main", utcTodayStart as CVarArg, utcTomorrowStart as CVarArg)
-
-    let query = CKQuery(recordType: "worksession", predicate: predicate)
-    let operation = CKQueryOperation(query: query)
-    operation.resultsLimit = CKQueryOperation.maximumResults
-
-    DispatchQueue.main.async {
-        self.sessions = [] // Clear sessions before fetching new ones
-    }
-
-    operation.recordMatchedBlock = { _, result in
-        switch result {
-        case .success(let record):
-            if let session = WorkSession(from: record) {
-                DispatchQueue.main.async {
-                    self.sessions = [session]
-                    print("✅ [fetchTodayMainSession] Main session for today loaded: \(session.id)")
-                }
-            }
-        case .failure(let error):
-            print("❌ [fetchTodayMainSession] 오류: \(error.localizedDescription)")
+    
+    //MARK: - ✅ 특정 사용자의 Main WorkSession 쿼리하기
+    func fetchTodayMainSession(userRecord: CKRecord) {
+        let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
+        
+        // Step 1: Create KST-based calendar
+        let koreanTimeZone = TimeZone(identifier: "Asia/Seoul")!
+        var kstCalendar = Calendar(identifier: .gregorian)
+        kstCalendar.timeZone = koreanTimeZone
+        
+        // Step 2: Get KST start and end of today
+        let startOfTodayKST = kstCalendar.startOfDay(for: Date())
+        let startOfTomorrowKST = kstCalendar.date(byAdding: .day, value: 1, to: startOfTodayKST)!
+        
+        // Step 3: Convert to UTC for CloudKit query
+        let utcCalendar = Calendar(identifier: .gregorian)
+        let utcTodayStart = startOfTodayKST.convert(to: .gmt, using: utcCalendar)
+        let utcTomorrowStart = startOfTomorrowKST.convert(to: .gmt, using: utcCalendar)
+        
+        print("💫 fetchTodayMainSession 쿼리 시작")
+        print("🧪 유저ID: \(userRecord.recordID.recordName)")
+        print("🧪 조건: userReference == \(userReference.recordID.recordName), workOption == 'Main'")
+        print("🧪 조건: date >= \(utcTodayStart), date < \(utcTomorrowStart) (UTC 기준)")
+        
+        let predicate = NSPredicate(format: "userReference == %@ AND workOption == %@ AND date >= %@ AND date < %@",
+                                    userReference, "Main", utcTodayStart as CVarArg, utcTomorrowStart as CVarArg)
+        
+        let query = CKQuery(recordType: "worksession", predicate: predicate)
+        let operation = CKQueryOperation(query: query)
+        operation.resultsLimit = CKQueryOperation.maximumResults
+        
+        DispatchQueue.main.async {
+            self.sessions = [] // Clear sessions before fetching new ones
         }
+        
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                print("✅ 매칭된 레코드 ID: \(recordID.recordName)")
+                print("----------이상 조회 끝----------AttenceViewModel----------")
+                if let session = WorkSession(from: record) {
+                    DispatchQueue.main.async {
+                        self.sessions = [session]
+                        //                    print("✅ [fetchTodayMainSession] Main session 저장 완료: \(session)")
+                    }
+                }
+            case .failure(let error):
+                print("❌ 레코드 매칭 실패: \(error.localizedDescription)")
+            }
+        }
+        
+        operation.queryResultBlock = { result in
+            switch result {
+            case .success:
+                print("✅ [단독 로그] fetchTodayMainSession 쿼리 성공")
+            case .failure(let error):
+                print("❌ [단독 로그] fetchTodayMainSession 쿼리 실패: \(error.localizedDescription)")
+            }
+        }
+        
+        database.add(operation)
     }
-
-    database.add(operation)
-}
-
+    
     //MARK: - ✅ 출근 기록 (Users 레코드 참조 추가)
     func checkIn(userRecord: CKRecord) {
         print("\n----------Main WorkSession 생성----------AttendanceViewModel----------\n")
@@ -133,7 +149,7 @@ func fetchTodayMainSession(userRecord: CKRecord) {
             }
         }
     }
-
+    
     //MARK: - ✅ 퇴근 기록
     func checkOut(session: WorkSession? = nil, userRecord: CKRecord? = nil) {
         if let session = session {
@@ -143,8 +159,8 @@ func fetchTodayMainSession(userRecord: CKRecord) {
             sessions[index].lastUpdated = Date()
             
             print("\n----------Main WorkSession 마무리----------AttendanceViewModel----------\n")
-
-            let record = sessions[index].toRecord()
+            
+            let record = sessions[index].toRecord(existingRecord: CKRecord(recordType: "worksession", recordID: CKRecord.ID(recordName: sessions[index].id)))
             database.save(record) { savedRecord, error in
                 if let error = error {
                     print("❌ [checkOut] 퇴근 기록 저장 실패: \(error.localizedDescription)")
@@ -173,42 +189,46 @@ func fetchTodayMainSession(userRecord: CKRecord) {
             print("----------이상 끝----------AttendanceViewModel----------")
         }
     }
-
-    //MARK: - 🗑 사용자 탈퇴 처리 (사용자 레코드 + 모든 WorkSession 삭제)
-    func deleteUserData(userRecord: CKRecord, completion: @escaping (Bool) -> Void) {
-        let userReference = CKRecord.Reference(recordID: userRecord.recordID, action: .none)
-        let sessionPredicate = NSPredicate(format: "userReference == %@", userReference)
-        let sessionQuery = CKQuery(recordType: "worksession", predicate: sessionPredicate)
-
-        // Step 1: Fetch all sessions for this user
-        self.database.perform(sessionQuery, inZoneWith: nil) { results, error in
+    
+    // MARK: - ✅ 코어타임 업데이트 메서드 추가
+    func updateCoreTime(for session: WorkSession, start: Date, end: Date) {
+        print("\n----------코어타임 정보 업데이트 로그----------AttendanceViewModel----------\n")
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        print("📝 [updateCoreTime] 업데이트할 세션 ID: \(session.id)")
+        print("🕒 [updateCoreTime] 현재 시각 (KST 기준): \(Date())")
+        let utcCalendar = Calendar(identifier: .gregorian)
+        let startUTC = start.convert(to: .gmt, using: utcCalendar)
+        let endUTC = end.convert(to: .gmt, using: utcCalendar)
+        print("🌍 [updateCoreTime] 변환된 시작 시간 (UTC): \(startUTC)")
+        print("🌍 [updateCoreTime] 변환된 종료 시간 (UTC): \(endUTC)")
+        sessions[index].coreStartTime = start
+        sessions[index].coreEndTime = end
+        sessions[index].lastUpdated = Date()
+        let recordID = CKRecord.ID(recordName: sessions[index].id)
+        database.fetch(withRecordID: recordID) { fetchedRecord, error in
             if let error = error {
-                print("❌ 사용자 세션 조회 실패: \(error.localizedDescription)")
-                completion(false)
+                print("❌ [updateCoreTime] 기존 레코드 조회 실패: \(error.localizedDescription)")
+                print("----------이상 업데이트 끝----------AttendanceViewModel----------")
                 return
             }
-
-            var recordsToDelete = results?.map { $0.recordID } ?? []
-
-            // Step 2: Add the user record itself
-            recordsToDelete.append(userRecord.recordID)
-
-            // Step 3: Batch delete
-            let deleteOperation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
-            deleteOperation.modifyRecordsResultBlock = { result in
-                switch result {
-                case .success:
-                    print("✅ 사용자 및 세션 전부 삭제 완료")
-                    DispatchQueue.main.async {
-                        self.sessions.removeAll()
-                        completion(true)
-                    }
-                case .failure(let error):
-                    print("❌ 사용자 및 세션 삭제 실패: \(error.localizedDescription)")
-                    completion(false)
-                }
+            guard let record = fetchedRecord else {
+                print("❌ [updateCoreTime] 기존 레코드가 nil입니다.")
+                print("----------이상 업데이트 끝----------AttendanceViewModel----------")
+                return
             }
-            self.database.add(deleteOperation)
+            record["coreStartTime"] = start as CKRecordValue
+            record["coreEndTime"] = end as CKRecordValue
+            record["lastUpdated"] = Date() as CKRecordValue
+            
+            self.database.save(record) { savedRecord, saveError in
+                if let saveError = saveError {
+                    print("❌ [updateCoreTime] 코어타임 저장 실패: \(saveError.localizedDescription)")
+                    print("----------이상 업데이트 끝----------AttendanceViewModel----------")
+                    return
+                }
+                print("✅ [updateCoreTime] 코어타임 성공적으로 저장됨: \(record.recordID.recordName)")
+                print("----------이상 업데이트 끝----------AttendanceViewModel----------")
+            }
         }
     }
 }

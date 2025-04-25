@@ -16,19 +16,6 @@ struct MainUIView: View {
     @State private var workedTimeText: String = "0h 0m"
     @State private var timer: Timer? = nil
     
-    func xOffset(for date: Date) -> CGFloat {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.hour, .minute, .second], from: date)
-        let hour = CGFloat(components.hour ?? 0)
-        let minute = CGFloat(components.minute ?? 0)
-        let second = CGFloat(components.second ?? 0)
-        let seconds = (hour * 3600) + (minute * 60) + second
-        return (seconds / totalSeconds) * fullWidth
-    }
-    
-    func widthBetween(_ start: Date, _ end: Date) -> CGFloat {
-        max(xOffset(for: end) - xOffset(for: start), 0)
-    }
     
     func startWorkTimer() {
         timer?.invalidate()
@@ -78,11 +65,13 @@ struct MainUIView: View {
                 Spacer().frame(height: 16)
                 
                 Divider()
-                
-                Spacer().frame(height: 16)
+                    .padding(.horizontal, -16)
                 
                 ScrollView {
                     VStack(spacing: 16) {
+                        
+                        Spacer().frame(height: 2)
+                        
                         //MARK: - ✅ 개인 업무 인사이트 섹션
                         NavigationLink(destination: StatisticsView()) {
                             RoundedRectangle(cornerRadius: 18)
@@ -126,6 +115,7 @@ struct MainUIView: View {
                                 Text("새로운 기능을 제안해주세요.!!")
                                     .foregroundColor(.primary)
                             )
+                        Spacer().frame(height: 2)
                     }
                 }
                 
@@ -181,10 +171,19 @@ struct MainUIView: View {
                 
                 Spacer().frame(height: 16)
 
-                // ✅ 업무 그래프
+                //MARK: - ✅ 업무 그래프
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("00시")
+                            .font(.caption2)
+                        Spacer()
+                        Text("06시")
+                            .font(.caption2)
+                        Spacer()
+                        Text("12시")
+                            .font(.caption2)
+                        Spacer()
+                        Text("18시")
                             .font(.caption2)
                         Spacer()
                         Text("24시")
@@ -192,23 +191,34 @@ struct MainUIView: View {
                     }
                     
                     ZStack(alignment: .leading) {
+                        // ✅ 그래프 배경
                         Capsule()
                             .fill(Color.gray.opacity(0.2))
                             .frame(height: 14)
-                        
+
+                        // ✅ 메인세션 그래프
                         if let start = checkInTime {
                             Capsule()
                                 .fill(Color.green.opacity(0.4))
-                                .frame(width: widthBetween(start, checkOutTime ?? Date()), height: 14)
-                                .offset(x: xOffset(for: start))
+                                .frame(width: TimeBarCalculator.barWidth(from: start, to: checkOutTime ?? Date(), totalWidth: fullWidth), height: 14)
+                                .offset(x: TimeBarCalculator.xOffset(for: start, totalWidth: fullWidth))
                         }
-                        
+
+                        // ✅ 코어타임 그래프
                         if let start = coreStartTime, let end = coreEndTime {
                             Capsule()
                                 .fill(Color.blue)
-                                .frame(width: widthBetween(start, end), height: 14)
-                                .offset(x: xOffset(for: start))
+                                .frame(width: TimeBarCalculator.barWidth(from: start, to: end, totalWidth: fullWidth), height: 14)
+                                .offset(x: TimeBarCalculator.xOffset(for: start, totalWidth: fullWidth))
                         }
+
+                        // ✅ 점심시간 캡슐 (Lunch time capsule)
+                        let lunchStart = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+                        let lunchEnd = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: Date())!
+                        Capsule()
+                            .fill(Color.yellow.opacity(0.7))
+                            .frame(width: TimeBarCalculator.barWidth(from: lunchStart, to: lunchEnd, totalWidth: fullWidth), height: 14)
+                            .offset(x: TimeBarCalculator.xOffset(for: lunchStart, totalWidth: fullWidth))
                     }
                 }
                 .padding(.horizontal)
@@ -232,14 +242,17 @@ struct MainUIView: View {
                                 viewModel.checkOut(userRecord: currentUserRecord)
                             }
 
-                            CoreTimeButton {
-                                if coreStartTime == nil {
-                                    coreStartTime = Date()
-                                } else if coreEndTime == nil {
-                                    coreEndTime = Date()
-                                } else {
-                                    coreStartTime = nil
-                                    coreEndTime = nil
+                            // --- CoreTimeButton logic refactored for clarity and compiler performance ---
+                            if let start = mainSession.coreStartTime, let end = mainSession.coreEndTime {
+                                if end > Date() {
+                                    CoreTimeButton(isCoreTimeActive: true, isVisible: true)
+                                }
+                                // No else needed, implicitly hides
+                            } else {
+                                CoreTimeButton(isCoreTimeActive: false, isVisible: true) {
+                                    let start = Date()
+                                    let end = Calendar.current.date(byAdding: .hour, value: 4, to: start)!
+                                    viewModel.updateCoreTime(for: mainSession, start: start, end: end)
                                 }
                             }
 
@@ -256,16 +269,7 @@ struct MainUIView: View {
                             startWorkTimer()
                         }
 
-                        CoreTimeButton {
-                            if coreStartTime == nil {
-                                coreStartTime = Date()
-                            } else if coreEndTime == nil {
-                                coreEndTime = Date()
-                            } else {
-                                coreStartTime = nil
-                                coreEndTime = nil
-                            }
-                        }
+                        EmptyView()
 
                         AdditionButton(isPresented: $showAdditionPopup)
                     }
@@ -277,13 +281,15 @@ struct MainUIView: View {
                 AdditionPopupView(isPresented: $showAdditionPopup)
             }
             .onAppear {
-                print("🟡 [MainUIView] onAppear - fetching sessions...")
+                print("\n----------Main WorkSession 조회----------MainUIView onAppear----------\n")
+                print("🟡 AttendanceViewModel의 fetchTodayMainSession() 호출...")
                 viewModel.fetchTodayMainSession(userRecord: currentUserRecord)
             }
             .onReceive(viewModel.$sessions) { sessions in
+                print("\n----------Main WorkSession 반영----------MainUIView onReceive----------\n")
                 let today = Calendar.current.startOfDay(for: Date())
                 let userReference = CKRecord.Reference(recordID: currentUserRecord.recordID, action: .none)
-                print("🟢 [MainUIView] Received \(sessions.count) session(s). Checking today's Main session state...")
+                print("🟢 데이터 변화 발생! 총 \(sessions.count) 세션이 있음. 오늘의 메인세션을 확인하는중...")
 
                 if let session = sessions.first(where: {
                     $0.userReference.recordID == userReference.recordID &&
@@ -291,7 +297,8 @@ struct MainUIView: View {
                     $0.workOption == "Main" &&
                     $0.checkOutTime == nil
                 }) {
-                    print("✅ [MainUIView] Main session found for today without checkOutTime → Showing 퇴근 버튼")
+                    print("✅ 체크아웃되지 않고 오늘에 해당하는 메인세션이 존재함 → Showing 퇴근 버튼")
+                    print("----------이상 반영 끝----------MainUIView onReceive----------")
                     checkInTime = session.checkInTime
                     isCheckedIn = true
                     startWorkTimer()
@@ -301,12 +308,14 @@ struct MainUIView: View {
                     $0.workOption == "Main" &&
                     $0.checkOutTime != nil
                 }) {
-                    print("🔵 [MainUIView] Main session exists but already checked out → Hiding buttons")
+                    print("🔵 이미 체크아웃된 메인세션이 존재함 → Hiding buttons")
+                    print("----------이상 반영 끝----------MainUIView onReceive----------")
                     isCheckedIn = false
                     checkInTime = session.checkInTime
                     checkOutTime = session.checkOutTime
                 } else {
-                    print("🟠 [MainUIView] No Main session for today → Showing 출근 버튼")
+                    print("🟠 오늘에 해당하는 메인 세션 없음 → Showing 출근 버튼")
+                    print("----------이상 반영 끝----------MainUIView onReceive----------")
                     isCheckedIn = false
                     checkInTime = nil
                     checkOutTime = nil
