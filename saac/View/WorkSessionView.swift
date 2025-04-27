@@ -1,18 +1,10 @@
-//
-//  WorkSessionView.swift
-//  saac
-//
-//  Created by 위관우 on 4/22/25.
-//
-
-
 import SwiftUI
 import CloudKit
 
 struct WorkSessionView: View {
     @State private var sessions: [WorkSession] = []
     @State private var selectedFilter: String = "전체"
-    let workOptions = ["전체", "Main", "addition", "deletion"]
+    let workOptions = ["전체", "Main", "Add", "Del"]
     
     private var filteredSessions: [WorkSession] {
         selectedFilter == "전체" ? sessions : sessions.filter { $0.workOption == selectedFilter }
@@ -24,10 +16,11 @@ struct WorkSessionView: View {
                 // Custom Picker
                 Picker("필터", selection: $selectedFilter) {
                     ForEach(workOptions, id: \.self) { option in
-                        Text(option.capitalized)
+                        let text = Text(option.capitalized)
                             .fontWeight(.semibold)
                             .padding(.vertical, 6)
                             .frame(maxWidth: .infinity)
+                        text
                     }
                 }
                 .pickerStyle(SegmentedPickerStyle())
@@ -37,35 +30,7 @@ struct WorkSessionView: View {
                 // Filtered session cards
                 LazyVStack(spacing: 16) {
                     ForEach(filteredSessions, id: \.id) { session in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(session.userName)
-                                    .font(.title3).bold()
-                                Spacer()
-                                Text(session.workOption)
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                                    .padding(6)
-                                    .background(Color.blue)
-                                    .clipShape(Capsule())
-                            }
-
-                            HStack(spacing: 4) {
-                                Label(formattedDate(session.date), systemImage: "calendar")
-                                Spacer()
-                                Label(formattedTimeRange(start: session.checkInTime, end: session.checkOutTime), systemImage: "clock")
-                            }
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(session.checkOutTime == nil ? Color.red.opacity(0.1) : Color(.systemBackground))
-                                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
-                        )
-                        .padding(.horizontal)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        WorkSessionRowView(session: session)
                     }
                 }
                 .animation(.easeInOut(duration: 0.3), value: selectedFilter)
@@ -124,4 +89,3 @@ struct WorkSessionView: View {
         return "\(startStr) ~ \(endStr)"
     }
 }
-

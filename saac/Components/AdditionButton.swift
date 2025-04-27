@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 struct AdditionButton: View {
     @Binding var isPresented: Bool
@@ -26,6 +27,7 @@ struct AdditionPopupView: View {
     @State private var startTime = Date()
     @State private var endTime = Date()
     @State private var note = ""
+    @StateObject private var viewModel = AttendanceViewModel()
 
     var body: some View {
         NavigationView {
@@ -64,6 +66,7 @@ struct AdditionPopupView: View {
                                    selection: $selectedDate,
                                    displayedComponents: .date)
                             .datePickerStyle(.graphical)
+                            .frame(height: 350) // ✅ 패치: 높이 명시
                             .labelsHidden()
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
@@ -98,7 +101,32 @@ struct AdditionPopupView: View {
 
                     // 버튼
                     Button(action: {
-                        isPresented = false
+                        if let userRecord = self.viewModel.currentUserRecord {
+                            print("✅ currentUserRecord 있음: \(userRecord)")
+                            self.viewModel.saveAdjustedSession(
+                                userRecord: userRecord,
+                                workType: self.workType,
+                                note: self.note,
+                                selectedDate: self.selectedDate,
+                                startTime: self.startTime,
+                                endTime: self.endTime
+                            )
+                        } else if let userID = UserDefaults.standard.string(forKey: "currentUserID") {
+                            print("✅ currentUserID 기반으로 추가 세션 저장")
+                            self.viewModel.saveAdjustedSessionWithoutUserRecord(
+                                userID: userID,
+                                workType: self.workType,
+                                note: self.note,
+                                selectedDate: self.selectedDate,
+                                startTime: self.startTime,
+                                endTime: self.endTime
+                            )
+                        } else {
+                            print("❌ 저장 실패: userRecord도 userID도 없음")
+                        }
+                        DispatchQueue.main.async {
+                            isPresented = false
+                        }
                     }) {
                         Text("확인")
                             .frame(maxWidth: .infinity)
@@ -114,6 +142,9 @@ struct AdditionPopupView: View {
             }
             .navigationTitle("근무 조정")
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .onAppear {
+            viewModel.fetchCurrentUserRecordFromUserDefaults()
         }
     }
 }

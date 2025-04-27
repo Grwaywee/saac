@@ -3,19 +3,20 @@ import SwiftUI
 
 struct TimeBarCalculator {
     
-    /// Total seconds in a full 24-hour day.
-    static let totalSeconds: CGFloat = 24 * 60 * 60
+    /// Total minutes in a full 24-hour day.
+    static let totalMinutes: CGFloat = 24 * 60 // 1440
 
     /// Converts a `Date` into an X offset (0.0 to 1.0) on a 24-hour timeline, using Asia/Seoul (KST) timezone.
     static func offsetRatio(for date: Date) -> CGFloat {
         let calendar = Calendar(identifier: .gregorian)
         let kst = TimeZone(identifier: "Asia/Seoul")!
-        let components = calendar.dateComponents(in: kst, from: date)
-        let hour = CGFloat(components.hour ?? 0)
-        let minute = CGFloat(components.minute ?? 0)
-        let second = CGFloat(components.second ?? 0)
-        let seconds = (hour * 3600) + (minute * 60) + second
-        return seconds / totalSeconds
+        var calendarWithKST = calendar
+        calendarWithKST.timeZone = kst
+        
+        let startOfDay = calendarWithKST.startOfDay(for: date)
+        let minutesFromStartOfDay = CGFloat(date.timeIntervalSince(startOfDay) / 60) // Seconds to minutes
+        
+        return minutesFromStartOfDay / totalMinutes
     }
 
     /// Calculates width ratio (0.0 to 1.0) between two `Date`s.
